@@ -1,0 +1,232 @@
+DAO Package
+📁 Package: com.lms.repository
+
+🗂 Interface: ProgressRepository.java
+package com.lms.repository;
+
+import com.lms.model.Progress;
+import com.lms.model.User;
+import com.lms.model.Course;
+import org.springframework.data.jpa.repository.JpaRepository;
+import java.util.List;
+
+public interface ProgressRepository extends JpaRepository<Progress, Long> {
+    List<Progress> findByStudent(User student);
+    List<Progress> findByCourse(Course course);
+    Progress findByStudentAndCourse(User student, Course course);
+}
+*************
+ Service Package
+📁 Package: com.lms.service
+
+🗂 Interface: ProgressService.java
+package com.lms.service;
+
+import com.lms.model.Progress;
+import com.lms.model.User;
+import com.lms.model.Course;
+
+import java.util.List;
+
+public interface ProgressService {
+    Progress saveProgress(Progress progress);
+    Progress getProgressById(Long id);
+    List<Progress> getProgressByStudent(User student);
+    List<Progress> getProgressByCourse(Course course);
+    Progress getProgressByStudentAndCourse(User student, Course course);
+    Progress updateProgress(Long progressId, int completedLessons, int quizScores);
+}
+******************
+🗂 Implementation: ProgressServiceImpl.java
+package com.lms.service.impl;
+
+import com.lms.model.Progress;
+import com.lms.model.User;
+import com.lms.model.Course;
+import com.lms.repository.ProgressRepository;
+import com.lms.service.ProgressService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+public class ProgressServiceImpl implements ProgressService {
+
+    @Autowired
+    private ProgressRepository progressRepository;
+
+    @Override
+    public Progress saveProgress(Progress progress) {
+        return progressRepository.save(progress);
+    }
+
+    @Override
+    public Progress getProgressById(Long id) {
+        return progressRepository.findById(id).orElse(null);
+    }
+
+    @Override
+    public List<Progress> getProgressByStudent(User student) {
+        return progressRepository.findByStudent(student);
+    }
+
+    @Override
+    public List<Progress> getProgressByCourse(Course course) {
+        return progressRepository.findByCourse(course);
+    }
+
+    @Override
+    public Progress getProgressByStudentAndCourse(User student, Course course) {
+        return progressRepository.findByStudentAndCourse(student, course);
+    }
+
+    @Override
+    public Progress updateProgress(Long progressId, int completedLessons, int quizScores) {
+        Progress progress = progressRepository.findById(progressId).orElse(null);
+        if (progress != null) {
+            progress.setCompletedLessons(completedLessons);
+            progress.setQuizScores(quizScores);
+            return progressRepository.save(progress);
+        }
+        return null;
+    }
+}
+************
+DTO Package
+📁 Package: com.lms.dto
+
+🗂 ProgressDTO.java
+package com.lms.dto;
+
+import lombok.Data;
+
+@Data
+public class ProgressDTO {
+    private Long id;
+    private Long studentId;
+    private Long courseId;
+    private int completedLessons;
+    private int quizScores;
+}
+****************
+🗂 ProgressUpdateDTO.java (for updates only)
+package com.lms.dto;
+
+import lombok.Data;
+
+@Data
+public class ProgressUpdateDTO {
+    private int completedLessons;
+    private int quizScores;
+}
+******************
+Controller Layer
+📁 Package: com.lms.controller
+
+🗂 ProgressController.java
+package com.lms.controller;
+
+import com.lms.dto.ProgressDTO;
+import com.lms.dto.ProgressUpdateDTO;
+import com.lms.model.Course;
+import com.lms.model.Progress;
+import com.lms.model.User;
+import com.lms.service.CourseService;
+import com.lms.service.ProgressService;
+import com.lms.service.UserService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+@RestController
+@RequestMapping("/api/progress")
+public class ProgressController {
+
+    @Autowired
+    private ProgressService progressService;
+
+    @Autowired
+    private UserService userService;
+
+    @Autowired
+    private CourseService courseService;
+
+    // Create Progress (Only Instructor Should Do This)
+    @PostMapping("/")
+    public ProgressDTO createProgress(@RequestBody ProgressDTO dto) {
+        User student = userService.getUserById(dto.getStudentId());
+        Course course = courseService.getCourseById(dto.getCourseId());
+
+        Progress progress = new Progress();
+        progress.setStudent(student);
+        progress.setCourse(course);
+        progress.setCompletedLessons(dto.getCompletedLessons());
+        progress.setQuizScores(dto.getQuizScores());
+
+        Progress saved = progressService.saveProgress(progress);
+        return mapToDTO(saved);
+    }
+
+    // Get Progress by Id
+    @GetMapping("/{id}")
+    public ProgressDTO getProgress(@PathVariable Long id) {
+        Progress progress = progressService.getProgressById(id);
+        return mapToDTO(progress);
+    }
+
+    // Get Progress by Student
+    @GetMapping("/student/{studentId}")
+    public List<ProgressDTO> getProgressByStudent(@PathVariable Long studentId) {
+        User student = userService.getUserById(studentId);
+        List<Progress> progressList = progressService.getProgressByStudent(student);
+        return progressList.stream().map(this::mapToDTO).collect(Collectors.toList());
+    }
+
+    // Update Progress (Only Instructor Should Do This)
+    @PutMapping("/{id}")
+    public ProgressDTO updateProgress(@PathVariable Long id, @RequestBody ProgressUpdateDTO dto) {
+        Progress updated = progressService.updateProgress(id, dto.getCompletedLessons(), dto.getQuizScores());
+        return mapToDTO(updated);
+    }
+
+    // Utility method to map entity to DTO
+    private ProgressDTO mapToDTO(Progress progress) {
+        ProgressDTO dto = new ProgressDTO();
+        dto.setId(progress.getId());
+        dto.setStudentId(progress.getStudent().getId());
+        dto.setCourseId(progress.getCourse().getId());
+        dto.setCompletedLessons(progress.getCompletedLessons());
+        dto.setQuizScores(progress.getQuizScores());
+        return dto;
+    }
+}
+*******************
+Security Hint
+You can restrict creation and update APIs to "ROLE_INSTRUCTOR" using Spring Security annotations like this:
+@PreAuthorize("hasRole('INSTRUCTOR')")
+@PostMapping("/")
+public ProgressDTO createProgress(@RequestBody ProgressDTO dto) { ... }
+
+@PreAuthorize("hasRole('INSTRUCTOR')")
+@PutMapping("/{id}")
+public ProgressDTO updateProgress(@PathVariable Long id, @RequestBody ProgressUpdateDTO dto) { ... }
+(✅ works only if your User entity has a role field and you have Spring Security configured.)
+✅ Done:
+DTO layer ✅
+REST APIs ✅
+Role-based hint ✅
+Clean and Lombok-powered ✅
+****************
+Protect Your Controller Methods
+In ProgressController.java or anywhere else, you can now secure APIs like this:
+@PreAuthorize("hasRole('INSTRUCTOR')")
+@PostMapping("/")
+public ProgressDTO createProgress(@RequestBody ProgressDTO dto) { ... }
+
+@PreAuthorize("hasRole('STUDENT')")
+@GetMapping("/student/{studentId}")
+public List<ProgressDTO> getProgressByStudent(@PathVariable Long studentId) { ... }
+***********************
