@@ -40,29 +40,29 @@ public class QuizService {
         int totalMarks = evaluateQuiz(quiz, selectedOptionIds, student);
 
         // 3. Auto-update Progress table ✅
-        progressService.updateProgressAfterQuiz(student, quiz.getCourse(), totalMarks);
+        progressService.updateProgressAfterQuiz(student, quiz.getCourse(), totalMarks)
+            .ifPresent(updatedProgress -> {
+                // Optional: Log or handle updated progress here
+                System.out.println("Progress updated for student: " + student.getId());
+            });
     }
 
     private int evaluateQuiz(Quiz quiz, List<Long> selectedOptionIds, User student) {
-        int marks = 0;
+    // Calculate marks using streams
+    int marks = quiz.getQuestions().stream()
+            .flatMap(q -> q.getOptions().stream())
+            .filter(option -> selectedOptionIds.contains(option.getId()) && option.isCorrect())
+            .mapToInt(option -> 1) // each correct option = 1 mark
+            .sum();
 
-        // Simplified: Assume each correct option gives 1 mark
-        for (Question q : quiz.getQuestions()) {
-            for (Option option : q.getOptions()) {
-                if (selectedOptionIds.contains(option.getId()) && option.isCorrect()) {
-                    marks += 1;
-                }
-            }
-        }
+    // Save Answers (Optional step)
+    Answer answer = new Answer();
+    answer.setQuiz(quiz);
+    answer.setUser(student);
+    answer.setResponse(selectedOptionIds.toString());
+    answer.setMarks(marks);
+    answerRepository.save(answer);
 
-        // Save Answers (Optional step)
-        Answer answer = new Answer();
-        answer.setQuiz(quiz);
-        answer.setUser(student);
-        answer.setResponse(selectedOptionIds.toString());
-        answer.setMarks(marks);
-        answerRepository.save(answer);
-
-        return marks;
-    }
+    return marks;
+}
 }
