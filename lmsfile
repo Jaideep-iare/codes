@@ -96,7 +96,7 @@ public class ProgressServiceImpl implements ProgressService {
     }
 
     @Override
-    public void updateProgressAfterQuiz(User student, Course course, int quizScore) {
+    public Optional<Progress> updateProgressAfterQuiz(User student, Course course, int quizScore) {
         // Get existing progress or create new one
         Progress progress = progressRepository.findByStudentAndCourse(student, course)
             .orElseGet(() -> {
@@ -107,17 +107,19 @@ public class ProgressServiceImpl implements ProgressService {
                 p.setQuizScores(0);
                 return p;
             });
-
+    
         // Update quiz score (sum)
         int updatedScore = progress.getQuizScores() + quizScore;
         progress.setQuizScores(updatedScore);
-
+    
         // Optional: Update lessons count (if quiz completion counts as progress)
         int updatedLessons = progress.getCompletedLessons() + 1;
         progress.setCompletedLessons(updatedLessons);
-
-        progressRepository.save(progress);
+    
+        Progress savedProgress = progressRepository.save(progress);
+        return Optional.of(savedProgress);
     }
+
 }
 
 ************
