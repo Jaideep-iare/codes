@@ -121,10 +121,19 @@ public class ProgressUpdateDTO {
     private int quizScores;
 }
 ******************
-Controller Layer
+Controller Layer(part 1)
 📁 Package: com.lms.controller
 
 🗂 ProgressController.java
+package com.lms.controller;
+
+✅ View all student progress by Course
+✅ Download as report (simulated, returning list for now)
+✅ Send Reminder (dummy endpoint)
+✅ Secure with @PreAuthorize for instructor-only actions
+✅ Use ResponseEntity
+
+Here’s your upgraded ProgressController 👇
 package com.lms.controller;
 
 import com.lms.dto.ProgressDTO;
@@ -136,6 +145,8 @@ import com.lms.service.CourseService;
 import com.lms.service.ProgressService;
 import com.lms.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -154,9 +165,10 @@ public class ProgressController {
     @Autowired
     private CourseService courseService;
 
-    // Create Progress (Only Instructor Should Do This)
+    // ✅ Create Progress (Only Instructor)
+    @PreAuthorize("hasRole('INSTRUCTOR')")
     @PostMapping("/")
-    public ProgressDTO createProgress(@RequestBody ProgressDTO dto) {
+    public ResponseEntity<ProgressDTO> createProgress(@RequestBody ProgressDTO dto) {
         User student = userService.getUserById(dto.getStudentId());
         Course course = courseService.getCourseById(dto.getCourseId());
 
@@ -167,32 +179,65 @@ public class ProgressController {
         progress.setQuizScores(dto.getQuizScores());
 
         Progress saved = progressService.saveProgress(progress);
-        return mapToDTO(saved);
+        return ResponseEntity.ok(mapToDTO(saved));
     }
 
-    // Get Progress by Id
+    // ✅ Get Progress by Id
     @GetMapping("/{id}")
-    public ProgressDTO getProgress(@PathVariable Long id) {
+    public ResponseEntity<ProgressDTO> getProgress(@PathVariable Long id) {
         Progress progress = progressService.getProgressById(id);
-        return mapToDTO(progress);
+        return ResponseEntity.ok(mapToDTO(progress));
     }
 
-    // Get Progress by Student
+    // ✅ Get Progress by Student (Instructor can view all students)
+    @PreAuthorize("hasRole('INSTRUCTOR')")
     @GetMapping("/student/{studentId}")
-    public List<ProgressDTO> getProgressByStudent(@PathVariable Long studentId) {
+    public ResponseEntity<List<ProgressDTO>> getProgressByStudent(@PathVariable Long studentId) {
         User student = userService.getUserById(studentId);
         List<Progress> progressList = progressService.getProgressByStudent(student);
-        return progressList.stream().map(this::mapToDTO).collect(Collectors.toList());
+        List<ProgressDTO> dtoList = progressList.stream().map(this::mapToDTO).collect(Collectors.toList());
+        return ResponseEntity.ok(dtoList);
     }
 
-    // Update Progress (Only Instructor Should Do This)
+    // ✅ Update Progress (Only Instructor)
+    @PreAuthorize("hasRole('INSTRUCTOR')")
     @PutMapping("/{id}")
-    public ProgressDTO updateProgress(@PathVariable Long id, @RequestBody ProgressUpdateDTO dto) {
+    public ResponseEntity<ProgressDTO> updateProgress(@PathVariable Long id, @RequestBody ProgressUpdateDTO dto) {
         Progress updated = progressService.updateProgress(id, dto.getCompletedLessons(), dto.getQuizScores());
-        return mapToDTO(updated);
+        return ResponseEntity.ok(mapToDTO(updated));
     }
 
-    // Utility method to map entity to DTO
+    // ✅ NEW: Get All Student Progress for a Course
+    @PreAuthorize("hasRole('INSTRUCTOR')")
+    @GetMapping("/course/{courseId}")
+    public ResponseEntity<List<ProgressDTO>> getProgressByCourse(@PathVariable Long courseId) {
+        Course course = courseService.getCourseById(courseId);
+        List<Progress> progressList = progressService.getProgressByCourse(course);
+        List<ProgressDTO> dtoList = progressList.stream().map(this::mapToDTO).collect(Collectors.toList());
+        return ResponseEntity.ok(dtoList);
+    }
+
+    // ✅ NEW: Simulate Download Report (return list now)
+    @PreAuthorize("hasRole('INSTRUCTOR')")
+    @GetMapping("/course/{courseId}/download")
+    public ResponseEntity<List<ProgressDTO>> downloadProgressReport(@PathVariable Long courseId) {
+        Course course = courseService.getCourseById(courseId);
+        List<Progress> progressList = progressService.getProgressByCourse(course);
+        List<ProgressDTO> dtoList = progressList.stream().map(this::mapToDTO).collect(Collectors.toList());
+        return ResponseEntity.ok(dtoList);
+    }
+
+    // ✅ NEW: Send Reminder to Student (dummy)
+    @PreAuthorize("hasRole('INSTRUCTOR')")
+    @PostMapping("/{progressId}/reminder")
+    public ResponseEntity<String> sendReminder(@PathVariable Long progressId) {
+        Progress progress = progressService.getProgressById(progressId);
+        // TODO: Implement email sending logic here
+        String studentName = progress.getStudent().getName();
+        return ResponseEntity.ok("Reminder sent to student: " + studentName);
+    }
+
+    // ✅ Utility mapper
     private ProgressDTO mapToDTO(Progress progress) {
         ProgressDTO dto = new ProgressDTO();
         dto.setId(progress.getId());
@@ -230,3 +275,5 @@ public ProgressDTO createProgress(@RequestBody ProgressDTO dto) { ... }
 @GetMapping("/student/{studentId}")
 public List<ProgressDTO> getProgressByStudent(@PathVariable Long studentId) { ... }
 ***********************
+
+
