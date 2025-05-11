@@ -1,0 +1,68 @@
+1️⃣ Add Endpoint: Quiz Submission (Auto Progress Update Trigger)
+In QuizController.java:
+
+@PostMapping("/submit")
+public ResponseEntity<String> submitQuiz(
+        @RequestParam Long quizId,
+        @RequestParam Long studentId,
+        @RequestBody List<Long> selectedOptionIds) {
+
+    quizService.submitQuizAndUpdateProgress(quizId, studentId, selectedOptionIds);
+    return ResponseEntity.ok("Quiz submitted and progress updated successfully.");
+}
+
+***********************
+2️⃣ Service: Submit Quiz + Auto Update Progress
+In QuizService.java:
+
+@Service
+public class QuizService {
+
+    @Autowired
+    private QuizRepository quizRepository;
+
+    @Autowired
+    private UserService userService;
+
+    @Autowired
+    private AnswerRepository answerRepository;
+
+    @Autowired
+    private ProgressService progressService;
+
+    public void submitQuizAndUpdateProgress(Long quizId, Long studentId, List<Long> selectedOptionIds) {
+        // 1. Get Quiz & Student
+        Quiz quiz = quizRepository.findById(quizId)
+                .orElseThrow(() -> new RuntimeException("Quiz not found"));
+        User student = userService.getUserById(studentId);
+
+        // 2. Evaluate Quiz Score
+        int totalMarks = evaluateQuiz(quiz, selectedOptionIds, student);
+
+        // 3. Auto-update Progress table ✅
+        progressService.updateProgressAfterQuiz(student, quiz.getCourse(), totalMarks);
+    }
+
+    private int evaluateQuiz(Quiz quiz, List<Long> selectedOptionIds, User student) {
+        int marks = 0;
+
+        // Simplified: Assume each correct option gives 1 mark
+        for (Question q : quiz.getQuestions()) {
+            for (Option option : q.getOptions()) {
+                if (selectedOptionIds.contains(option.getId()) && option.isCorrect()) {
+                    marks += 1;
+                }
+            }
+        }
+
+        // Save Answers (Optional step)
+        Answer answer = new Answer();
+        answer.setQuiz(quiz);
+        answer.setUser(student);
+        answer.setResponse(selectedOptionIds.toString());
+        answer.setMarks(marks);
+        answerRepository.save(answer);
+
+        return marks;
+    }
+}
