@@ -9,12 +9,14 @@ import com.lms.model.User;
 import com.lms.model.Course;
 import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
+import java.util.Optional;
 
 public interface ProgressRepository extends JpaRepository<Progress, Long> {
     List<Progress> findByStudent(User student);
     List<Progress> findByCourse(Course course);
-    Progress findByStudentAndCourse(User student, Course course);
+    Optional<Progress> findByStudentAndCourse(User student, Course course);
 }
+
 *************
  Service Package
 📁 Package: com.lms.service
@@ -25,18 +27,19 @@ package com.lms.service;
 import com.lms.model.Progress;
 import com.lms.model.User;
 import com.lms.model.Course;
-
 import java.util.List;
+import java.util.Optional;
 
 public interface ProgressService {
     Progress saveProgress(Progress progress);
-    Progress getProgressById(Long id);
+    Optional<Progress> getProgressById(Long id);
     List<Progress> getProgressByStudent(User student);
     List<Progress> getProgressByCourse(Course course);
-    Progress getProgressByStudentAndCourse(User student, Course course);
-    Progress updateProgress(Long progressId, int completedLessons, int quizScores);
-    void updateProgressAfterQuiz(User student, Course course, int quizScore)
+    Optional<Progress> getProgressByStudentAndCourse(User student, Course course);
+    Optional<Progress> updateProgress(Long progressId, int completedLessons, int quizScores);
+    Optional<Progress> updateProgressAfterQuiz(User student, Course course, int quizScore);
 }
+
 ******************
 🗂 Implementation: ProgressServiceImpl.java
 package com.lms.service.impl;
@@ -50,6 +53,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class ProgressServiceImpl implements ProgressService {
@@ -63,8 +67,8 @@ public class ProgressServiceImpl implements ProgressService {
     }
 
     @Override
-    public Progress getProgressById(Long id) {
-        return progressRepository.findById(id).orElse(null);
+    public Optional<Progress> getProgressById(Long id) {
+        return progressRepository.findById(id);
     }
 
     @Override
@@ -78,27 +82,24 @@ public class ProgressServiceImpl implements ProgressService {
     }
 
     @Override
-    public Progress getProgressByStudentAndCourse(User student, Course course) {
+    public Optional<Progress> getProgressByStudentAndCourse(User student, Course course) {
         return progressRepository.findByStudentAndCourse(student, course);
     }
 
     @Override
-    public Progress updateProgress(Long progressId, int completedLessons, int quizScores) {
-        Progress progress = progressRepository.findById(progressId).orElse(null);
-        if (progress != null) {
+    public Optional<Progress> updateProgress(Long progressId, int completedLessons, int quizScores) {
+        return progressRepository.findById(progressId).map(progress -> {
             progress.setCompletedLessons(completedLessons);
             progress.setQuizScores(quizScores);
             return progressRepository.save(progress);
-        }
-        return null;
+        });
     }
 
     @Override
     public void updateProgressAfterQuiz(User student, Course course, int quizScore) {
-    // Get existing progress record
-    Progress progress = progressRepository.findByStudentAndCourse(student, course)
+        // Get existing progress or create new one
+        Progress progress = progressRepository.findByStudentAndCourse(student, course)
             .orElseGet(() -> {
-                // If no progress yet, create new
                 Progress p = new Progress();
                 p.setStudent(student);
                 p.setCourse(course);
@@ -107,18 +108,18 @@ public class ProgressServiceImpl implements ProgressService {
                 return p;
             });
 
-    // Update quiz score (sum)
-    int updatedScore = progress.getQuizScores() + quizScore;
-    progress.setQuizScores(updatedScore);
+        // Update quiz score (sum)
+        int updatedScore = progress.getQuizScores() + quizScore;
+        progress.setQuizScores(updatedScore);
 
-    // Optional: Update lessons count (if quiz completion counts as progress)
-    int updatedLessons = progress.getCompletedLessons() + 1;
-    progress.setCompletedLessons(updatedLessons);
+        // Optional: Update lessons count (if quiz completion counts as progress)
+        int updatedLessons = progress.getCompletedLessons() + 1;
+        progress.setCompletedLessons(updatedLessons);
 
-    progressRepository.save(progress);
+        progressRepository.save(progress);
+    }
 }
 
-}
 ************
 DTO Package
 📁 Package: com.lms.dto
