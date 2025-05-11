@@ -35,6 +35,7 @@ public interface ProgressService {
     List<Progress> getProgressByCourse(Course course);
     Progress getProgressByStudentAndCourse(User student, Course course);
     Progress updateProgress(Long progressId, int completedLessons, int quizScores);
+    void updateProgressAfterQuiz(User student, Course course, int quizScore)
 }
 ******************
 🗂 Implementation: ProgressServiceImpl.java
@@ -91,6 +92,32 @@ public class ProgressServiceImpl implements ProgressService {
         }
         return null;
     }
+
+    @Override
+    public void updateProgressAfterQuiz(User student, Course course, int quizScore) {
+    // Get existing progress record
+    Progress progress = progressRepository.findByStudentAndCourse(student, course)
+            .orElseGet(() -> {
+                // If no progress yet, create new
+                Progress p = new Progress();
+                p.setStudent(student);
+                p.setCourse(course);
+                p.setCompletedLessons(0); // starting point
+                p.setQuizScores(0);
+                return p;
+            });
+
+    // Update quiz score (sum)
+    int updatedScore = progress.getQuizScores() + quizScore;
+    progress.setQuizScores(updatedScore);
+
+    // Optional: Update lessons count (if quiz completion counts as progress)
+    int updatedLessons = progress.getCompletedLessons() + 1;
+    progress.setCompletedLessons(updatedLessons);
+
+    progressRepository.save(progress);
+}
+
 }
 ************
 DTO Package
