@@ -210,11 +210,13 @@ public class ProgressController {
         return ResponseEntity.ok(mapToDTO(saved));
     }
 
-    // ✅ Get Progress by Id
+    // ✅ Get Progress by Id (Optional-safe)
     @GetMapping("/{id}")
     public ResponseEntity<ProgressDTO> getProgress(@PathVariable Long id) {
-        Progress progress = progressService.getProgressById(id);
-        return ResponseEntity.ok(mapToDTO(progress));
+        return progressService.getProgressById(id)
+                .map(this::mapToDTO)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
     // ✅ Get Progress by Student (Instructor can view all students)
@@ -231,8 +233,10 @@ public class ProgressController {
     @PreAuthorize("hasRole('INSTRUCTOR')")
     @PutMapping("/{id}")
     public ResponseEntity<ProgressDTO> updateProgress(@PathVariable Long id, @RequestBody ProgressUpdateDTO dto) {
-        Progress updated = progressService.updateProgress(id, dto.getCompletedLessons(), dto.getQuizScores());
-        return ResponseEntity.ok(mapToDTO(updated));
+        return progressService.updateProgress(id, dto.getCompletedLessons(), dto.getQuizScores())
+                .map(this::mapToDTO)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
     // ✅ NEW: Get All Student Progress for a Course
@@ -255,14 +259,17 @@ public class ProgressController {
         return ResponseEntity.ok(dtoList);
     }
 
-    // ✅ NEW: Send Reminder to Student (dummy)
+    // ✅ NEW: Send Reminder to Student (Optional-safe)
     @PreAuthorize("hasRole('INSTRUCTOR')")
     @PostMapping("/{progressId}/reminder")
     public ResponseEntity<String> sendReminder(@PathVariable Long progressId) {
-        Progress progress = progressService.getProgressById(progressId);
-        // TODO: Implement email sending logic here
-        String studentName = progress.getStudent().getName();
-        return ResponseEntity.ok("Reminder sent to student: " + studentName);
+        return progressService.getProgressById(progressId)
+                .map(progress -> {
+                    String studentName = progress.getStudent().getName();
+                    // TODO: Implement real email logic
+                    return ResponseEntity.ok("Reminder sent to student: " + studentName);
+                })
+                .orElse(ResponseEntity.notFound().build());
     }
 
     // ✅ Utility mapper
@@ -276,6 +283,7 @@ public class ProgressController {
         return dto;
     }
 }
+
 *******************
 Security Hint
 You can restrict creation and update APIs to "ROLE_INSTRUCTOR" using Spring Security annotations like this:
