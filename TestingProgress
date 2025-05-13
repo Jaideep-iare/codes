@@ -1,0 +1,347 @@
+Test Class for ProgressServiceImpl:
+package com.lms.service.impl;
+
+import com.lms.model.Course;
+import com.lms.model.Progress;
+import com.lms.model.User;
+import com.lms.repository.ProgressRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.*;
+import java.util.*;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
+class ProgressServiceImplTest {
+
+    @Mock
+    private ProgressRepository progressRepository;
+
+    @InjectMocks
+    private ProgressServiceImpl progressService;
+
+    private User student;
+    private Course course;
+    private Progress progress;
+
+    @BeforeEach
+    void setUp() {
+        MockitoAnnotations.openMocks(this);
+
+        student = new User();
+        student.setId(1L);
+        student.setName("Test Student");
+
+        course = new Course();
+        course.setId(101L);
+        course.setTitle("Java Basics");
+
+        progress = new Progress();
+        progress.setId(1L);
+        progress.setStudent(student);
+        progress.setCourse(course);
+        progress.setCompletedLessons(3);
+        progress.setQuizScores(75);
+    }
+
+    @Test
+    void testSaveProgress() {
+        when(progressRepository.save(progress)).thenReturn(progress);
+
+        Progress saved = progressService.saveProgress(progress);
+        assertNotNull(saved);
+        assertEquals(3, saved.getCompletedLessons());
+        verify(progressRepository, times(1)).save(progress);
+    }
+
+    @Test
+    void testGetProgressById() {
+        when(progressRepository.findById(1L)).thenReturn(Optional.of(progress));
+
+        Optional<Progress> result = progressService.getProgressById(1L);
+        assertTrue(result.isPresent());
+        assertEquals(progress, result.get());
+    }
+
+    @Test
+    void testGetProgressByStudent() {
+        when(progressRepository.findByStudent(student)).thenReturn(List.of(progress));
+
+        List<Progress> list = progressService.getProgressByStudent(student);
+        assertEquals(1, list.size());
+        assertEquals(progress, list.get(0));
+    }
+
+    @Test
+    void testGetProgressByCourse() {
+        when(progressRepository.findByCourse(course)).thenReturn(List.of(progress));
+
+        List<Progress> list = progressService.getProgressByCourse(course);
+        assertEquals(1, list.size());
+        assertEquals(course, list.get(0).getCourse());
+    }
+
+    @Test
+    void testGetProgressByStudentAndCourse() {
+        when(progressRepository.findByStudentAndCourse(student, course)).thenReturn(Optional.of(progress));
+
+        Optional<Progress> result = progressService.getProgressByStudentAndCourse(student, course);
+        assertTrue(result.isPresent());
+        assertEquals(progress, result.get());
+    }
+
+    @Test
+    void testUpdateProgress() {
+        when(progressRepository.findById(1L)).thenReturn(Optional.of(progress));
+        when(progressRepository.save(any(Progress.class))).thenReturn(progress);
+
+        Optional<Progress> updated = progressService.updateProgress(1L, 5, 90);
+        assertTrue(updated.isPresent());
+        assertEquals(5, updated.get().getCompletedLessons());
+        assertEquals(90, updated.get().getQuizScores());
+    }
+
+    @Test
+    void testUpdateProgressAfterQuiz_ExistingProgress() {
+        when(progressRepository.findByStudentAndCourse(student, course)).thenReturn(Optional.of(progress));
+        when(progressRepository.save(any(Progress.class))).thenReturn(progress);
+
+        Optional<Progress> updated = progressService.updateProgressAfterQuiz(student, course, 10);
+        assertTrue(updated.isPresent());
+        assertEquals(85, updated.get().getQuizScores()); // 75 + 10
+        assertEquals(4, updated.get().getCompletedLessons()); // 3 + 1
+    }
+
+    @Test
+    void testUpdateProgressAfterQuiz_NewProgress() {
+        when(progressRepository.findByStudentAndCourse(student, course)).thenReturn(Optional.empty());
+
+        Progress newProgress = new Progress();
+        newProgress.setStudent(student);
+        newProgress.setCourse(course);
+        newProgress.setCompletedLessons(1);
+        newProgress.setQuizScores(10);
+
+        when(progressRepository.save(any(Progress.class))).thenReturn(newProgress);
+
+        Optional<Progress> result = progressService.updateProgressAfterQuiz(student, course, 10);
+        assertTrue(result.isPresent());
+        assertEquals(1, result.get().getCompletedLessons());
+        assertEquals(10, result.get().getQuizScores());
+    }
+}
+
+Dependencies required:
+<dependency>
+    <groupId>org.mockito</groupId>
+    <artifactId>mockito-core</artifactId>
+    <version>5.6.0</version>
+    <scope>test</scope>
+</dependency>
+<dependency>
+    <groupId>org.junit.jupiter</groupId>
+    <artifactId>junit-jupiter</artifactId>
+    <version>5.10.0</version>
+    <scope>test</scope>
+</dependency>
+
+
+
+
+
+
+✅ Test Class: ProgressControllerTest
+✨ Features Covered:
+Create progress (POST)
+
+Get progress by ID (GET)
+
+Get progress by student (GET)
+
+Update progress (PUT)
+
+Get all progress by course (GET)
+
+Download report (GET)
+
+Send reminder (POST)
+
+ ProgressControllerTest.java:
+package com.lms.controller;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.lms.dto.ProgressDTO;
+import com.lms.dto.ProgressUpdateDTO;
+import com.lms.model.Course;
+import com.lms.model.Progress;
+import com.lms.model.User;
+import com.lms.service.CourseService;
+import com.lms.service.ProgressService;
+import com.lms.service.UserService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+
+import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.web.servlet.MockMvc;
+
+import java.util.*;
+
+import static org.mockito.ArgumentMatchers.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+@WebMvcTest(ProgressController.class)
+class ProgressControllerTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockBean
+    private ProgressService progressService;
+
+    @MockBean
+    private UserService userService;
+
+    @MockBean
+    private CourseService courseService;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    private User student;
+    private Course course;
+    private Progress progress;
+
+    @BeforeEach
+    void setup() {
+        student = new User();
+        student.setId(1L);
+        student.setName("Student A");
+
+        course = new Course();
+        course.setId(101L);
+        course.setTitle("Java");
+
+        progress = new Progress();
+        progress.setId(100L);
+        progress.setStudent(student);
+        progress.setCourse(course);
+        progress.setCompletedLessons(2);
+        progress.setQuizScores(50);
+    }
+
+    @Test
+    @WithMockUser(roles = "INSTRUCTOR")
+    void testCreateProgress() throws Exception {
+        ProgressDTO dto = new ProgressDTO();
+        dto.setStudentId(1L);
+        dto.setCourseId(101L);
+        dto.setCompletedLessons(2);
+        dto.setQuizScores(50);
+
+        Mockito.when(userService.getUserById(1L)).thenReturn(student);
+        Mockito.when(courseService.getCourseById(101L)).thenReturn(course);
+        Mockito.when(progressService.saveProgress(any(Progress.class))).thenReturn(progress);
+
+        mockMvc.perform(post("/api/progress/")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.completedLessons").value(2));
+    }
+
+    @Test
+    void testGetProgressById() throws Exception {
+        Mockito.when(progressService.getProgressById(100L)).thenReturn(Optional.of(progress));
+
+        mockMvc.perform(get("/api/progress/100"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.quizScores").value(50));
+    }
+
+    @Test
+    @WithMockUser(roles = "INSTRUCTOR")
+    void testGetProgressByStudent() throws Exception {
+        Mockito.when(userService.getUserById(1L)).thenReturn(student);
+        Mockito.when(progressService.getProgressByStudent(student)).thenReturn(List.of(progress));
+
+        mockMvc.perform(get("/api/progress/student/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.size()").value(1));
+    }
+
+    @Test
+    @WithMockUser(roles = "INSTRUCTOR")
+    void testUpdateProgress() throws Exception {
+        ProgressUpdateDTO dto = new ProgressUpdateDTO();
+        dto.setCompletedLessons(3);
+        dto.setQuizScores(80);
+
+        progress.setCompletedLessons(3);
+        progress.setQuizScores(80);
+
+        Mockito.when(progressService.updateProgress(eq(100L), eq(3), eq(80))).thenReturn(Optional.of(progress));
+
+        mockMvc.perform(put("/api/progress/100")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.quizScores").value(80));
+    }
+
+    @Test
+    @WithMockUser(roles = "INSTRUCTOR")
+    void testGetProgressByCourse() throws Exception {
+        Mockito.when(courseService.getCourseById(101L)).thenReturn(course);
+        Mockito.when(progressService.getProgressByCourse(course)).thenReturn(List.of(progress));
+
+        mockMvc.perform(get("/api/progress/course/101"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.size()").value(1));
+    }
+
+    @Test
+    @WithMockUser(roles = "INSTRUCTOR")
+    void testDownloadProgressReport() throws Exception {
+        Mockito.when(courseService.getCourseById(101L)).thenReturn(course);
+        Mockito.when(progressService.getProgressByCourse(course)).thenReturn(List.of(progress));
+
+        mockMvc.perform(get("/api/progress/course/101/download"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.size()").value(1));
+    }
+
+    @Test
+    @WithMockUser(roles = "INSTRUCTOR")
+    void testSendReminder() throws Exception {
+        Mockito.when(progressService.getProgressById(100L)).thenReturn(Optional.of(progress));
+
+        mockMvc.perform(post("/api/progress/100/reminder"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("Reminder sent to student: Student A"));
+    }
+}
+
+Dependencies required:
+<!-- For Spring Boot Test -->
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-test</artifactId>
+    <scope>test</scope>
+</dependency>
+
+<!-- For Spring Security Test -->
+<dependency>
+    <groupId>org.springframework.security</groupId>
+    <artifactId>spring-security-test</artifactId>
+    <scope>test</scope>
+</dependency>
+
+
