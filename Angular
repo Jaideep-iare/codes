@@ -1,0 +1,108 @@
+To display student name along with their progress details in the GetProgressByCourseComponent, you will need to:
+
+1. Get progress data by course ID (this requires a backend endpoint like /progress/course/{courseId}).
+
+
+2. For each progress entry, get the corresponding student’s name using UserService (by calling /users/{id}).
+
+
+3. Use forkJoin to combine all requests and load enriched data into your component.
+
+
+
+📁 Step-by-step Implementation
+
+Assuming you already have:
+
+ProgressService with a getProgressByCourseId(courseId) method.
+
+UserService with a getUserById(userId) method.
+
+
+Let’s build the component step by step.
+
+📄 progress.model.ts (updated to include name) Add this to enrich data after fetching:
+
+export interface ProgressViewModel { id: number; studentId: number; studentName: string; courseId: number; completedLessons: number; quizScores: number; // You can add attemptedQuizzes if you have it separately }
+
+📄 user.model.ts
+
+export interface User { id: number; name: string; email: string; role: 'STUDENT' | 'INSTRUCTOR'; }
+
+📄 user.service.ts
+
+import { Injectable } from '@angular/core'; import { HttpClient } from '@angular/common/http'; import { User } from 'src/app/shared/models/user.model'; import { Observable } from 'rxjs';
+
+@Injectable({ providedIn: 'root' }) export class UserService {
+
+private baseUrl = 'http://localhost:8080/api/users';
+
+constructor(private http: HttpClient) {}
+
+getUserById(id: number): Observable<User> { return this.http.get<User>(${this.baseUrl}/${id}); } }
+
+📄 progress.service.ts (Add this if not already present)
+
+getProgressByCourseId(courseId: number): Observable<Progress[]> { return this.http.get<Progress[]>(${this.baseUrl}/course/${courseId}); }
+
+📄 get-progress-by-course.component.ts
+
+import { Component, OnInit } from '@angular/core'; import { Progress } from 'src/app/shared/models/progress.model'; import { ProgressViewModel } from 'src/app/shared/models/progress.model'; import { ProgressService } from 'src/app/core/services/progress.service'; import { UserService } from 'src/app/core/services/user.service'; import { forkJoin } from 'rxjs'; import { User } from 'src/app/shared/models/user.model';
+
+@Component({ selector: 'app-get-progress-by-course', templateUrl: './get-progress-by-course.component.html', styleUrls: ['./get-progress-by-course.component.css'] }) export class GetProgressByCourseComponent implements OnInit {
+
+courseId: number = 1; // Set dynamically if needed progressList: ProgressViewModel[] = []; loading = true;
+
+constructor( private progressService: ProgressService, private userService: UserService ) {}
+
+ngOnInit(): void { this.loadProgress(); }
+
+loadProgress(): void { this.loading = true; this.progressService.getProgressByCourseId(this.courseId).subscribe(progressData => { const userRequests = progressData.map(p => this.userService.getUserById(p.studentId) );
+
+
+  forkJoin(userRequests).subscribe(userResponses => {
+    this.progressList = progressData.map((progress, index) => {
+      const student = userResponses[index];
+      return {
+        id: progress.id,
+        studentId: progress.studentId,
+        studentName: student.name,
+        courseId: progress.courseId,
+        completedLessons: progress.completedLessons,
+        quizScores: progress.quizScores
+      } as ProgressViewModel;
+    });
+    this.loading = false;
+  });
+});
+
+
+} }
+
+📄 get-progress-by-course.component.html
+
+<table class="table table-striped" *ngIf="!loading">
+  <thead>
+    <tr>
+      <th>Student Name</th>
+      <th>Completed Lessons</th>
+      <th>Quiz Scores</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr *ngFor="let progress of progressList">
+      <td>{{ progress.studentName }}</td>
+      <td>{{ progress.completedLessons }}</td>
+      <td>{{ progress.quizScores }}</td>
+    </tr>
+  </tbody>
+</table><p *ngIf="loading">Loading progress data...</p>✅ Summary
+
+We use getProgressByCourseId to get all progress records.
+
+Then, we use forkJoin with getUserById for each student to fetch their names.
+
+Finally, we combine both and display in a table.
+
+
+Let me know if you want to paginate, sort, or add filtering for students in the table.
