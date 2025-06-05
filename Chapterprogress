@@ -1,0 +1,135 @@
+Here’s the complete implementation for Option A — using a CompletedChapter entity to track which chapters a student has completed. This includes the model, repository, service, controller, and an endpoint to mark chapters as completed.
+
+📦 1. Entity: CompletedChapter.java
+
+package com.lms.model;
+
+import jakarta.persistence.; import lombok.; import java.time.LocalDateTime;
+
+@Entity @Data @NoArgsConstructor @AllArgsConstructor @Builder public class CompletedChapter {
+
+@Id
+@GeneratedValue(strategy = GenerationType.IDENTITY)
+private Long id;
+
+@ManyToOne
+private User student;
+
+@ManyToOne
+private Chapter chapter;
+
+private LocalDateTime completedAt;
+
+}
+
+📦 2. Repository: CompletedChapterRepository.java
+
+package com.lms.repository;
+
+import com.lms.model.CompletedChapter; import com.lms.model.User; import com.lms.model.Chapter; import org.springframework.data.jpa.repository.JpaRepository; import java.util.List; import java.util.Optional;
+
+public interface CompletedChapterRepository extends JpaRepository<CompletedChapter, Long> {
+
+List<CompletedChapter> findByStudent(User student);
+
+List<CompletedChapter> findByStudentAndChapter_Course_Id(User student, Long courseId);
+
+Optional<CompletedChapter> findByStudentAndChapter(User student, Chapter chapter);
+
+}
+
+📦 3. Service: CompletedChapterService.java
+
+package com.lms.service;
+
+import com.lms.model.Chapter; import com.lms.model.CompletedChapter; import com.lms.model.User; import com.lms.repository.CompletedChapterRepository; import org.springframework.beans.factory.annotation.Autowired; import org.springframework.stereotype.Service; import java.time.LocalDateTime; import java.util.List; import java.util.Optional;
+
+@Service public class CompletedChapterService {
+
+@Autowired
+private CompletedChapterRepository repository;
+
+public CompletedChapter markChapterCompleted(User student, Chapter chapter) {
+    Optional<CompletedChapter> existing = repository.findByStudentAndChapter(student, chapter);
+    if (existing.isPresent()) return existing.get(); // Already marked
+
+    CompletedChapter cc = CompletedChapter.builder()
+            .student(student)
+            .chapter(chapter)
+            .completedAt(LocalDateTime.now())
+            .build();
+
+    return repository.save(cc);
+}
+
+public List<CompletedChapter> getCompletedChaptersByStudent(User student) {
+    return repository.findByStudent(student);
+}
+
+public List<CompletedChapter> getCompletedChaptersByStudentAndCourse(User student, Long courseId) {
+    return repository.findByStudentAndChapter_Course_Id(student, courseId);
+}
+
+}
+
+📦 4. Controller: CompletedChapterController.java
+
+package com.lms.controller;
+
+import com.lms.model.Chapter; import com.lms.model.CompletedChapter; import com.lms.model.User; import com.lms.service.ChapterService; import com.lms.service.CompletedChapterService; import com.lms.service.UserService; import org.springframework.beans.factory.annotation.Autowired; import org.springframework.http.ResponseEntity; import org.springframework.web.bind.annotation.*; import java.util.List;
+
+@RestController @RequestMapping("/api/chapters") public class CompletedChapterController {
+
+@Autowired
+private CompletedChapterService completedChapterService;
+
+@Autowired
+private UserService userService;
+
+@Autowired
+private ChapterService chapterService;
+
+// Mark chapter as completed
+@PostMapping("/{chapterId}/complete")
+public ResponseEntity<CompletedChapter> completeChapter(
+        @RequestParam Long studentId,
+        @PathVariable Long chapterId) {
+
+    User student = userService.getUserById(studentId);
+    Chapter chapter = chapterService.getChapterById(chapterId);
+
+    CompletedChapter completed = completedChapterService.markChapterCompleted(student, chapter);
+    return ResponseEntity.ok(completed);
+}
+
+// Get all completed chapters for a student (optional: filter by course)
+@GetMapping("/completed")
+public ResponseEntity<List<CompletedChapter>> getCompletedChapters(
+        @RequestParam Long studentId,
+        @RequestParam(required = false) Long courseId) {
+
+    User student = userService.getUserById(studentId);
+    List<CompletedChapter> list = (courseId != null)
+            ? completedChapterService.getCompletedChaptersByStudentAndCourse(student, courseId)
+            : completedChapterService.getCompletedChaptersByStudent(student);
+
+    return ResponseEntity.ok(list);
+}
+
+}
+
+📦 5. Optional: ChapterService.java (used by controller)
+
+Add this method to ChapterService if not already present:
+
+public Chapter getChapterById(Long id) { return chapterRepository.findById(id) .orElseThrow(() -> new RuntimeException("Chapter not found")); }
+
+🎯 Frontend Usage
+
+When student clicks “Mark Chapter as Read”, call: POST /api/chapters/{chapterId}/complete?studentId=123
+
+To display chapters completed for a course: GET /api/chapters/completed?studentId=123&courseId=456
+
+
+Would you like a DTO for CompletedChapter as well to shape the API response?
+
