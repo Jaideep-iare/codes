@@ -156,3 +156,37 @@ this.courseService.getCourseById(this.courseId).subscribe(course => {
 });
 
 } }
+
+
+
+
+
+
+
+
+
+export class GetProgressByStudentComponent implements OnInit {
+
+studentId: number = 1; // Replace with dynamic value progressList: StudentProgressView[] = []; loading = true;
+
+constructor( private progressService: ProgressService, private courseService: CourseService, private chapterService: ChapterService, private answerService: AnswerService ) {}
+
+ngOnInit(): void { this.fetchStudentProgress(); }
+
+fetchStudentProgress(): void { this.loading = true; this.progressService.getProgressByStudent(this.studentId).subscribe(progressArray => { const courseRequests = progressArray.map(p => this.courseService.getCourseById(p.courseId)); const lessonRequests = progressArray.map(p => this.chapterService.getChapterCountByCourseId(p.courseId)); const quizAttempts = progressArray.map(p => this.answerService.getAttemptedQuizCount(this.studentId, p.courseId));
+
+forkJoin([forkJoin(courseRequests), forkJoin(lessonRequests), forkJoin(quizAttempts)]).subscribe(([courseData, lessonCounts, quizCounts]) => {
+    this.progressList = progressArray.map((progress, index) => ({
+      courseId: progress.courseId,
+      courseName: courseData[index].title,
+      totalLessons: lessonCounts[index],
+      completedLessons: progress.completedLessons,
+      quizScores: progress.quizScores,
+      attemptedQuizzes: quizCounts[index]
+    }));
+
+    this.loading = false;
+  });
+});
+
+} }
