@@ -106,3 +106,53 @@ Finally, we combine both and display in a table.
 
 
 Let me know if you want to paginate, sort, or add filtering for students in the table.
+
+
+
+
+
+
+
+
+
+
+
+
+
+export class GetProgressByCourseComponent implements OnInit {
+
+courseId: number = 1; // Replace with dynamic if needed progressList: ProgressViewModel[] = []; courseName: string = ''; loading = true;
+
+constructor( private progressService: ProgressService, private userService: UserService, private courseService: CourseService ) {}
+
+ngOnInit(): void { this.loadProgressAndCourse(); }
+
+loadProgressAndCourse(): void { this.loading = true;
+
+// Fetch course info first
+this.courseService.getCourseById(this.courseId).subscribe(course => {
+  this.courseName = course.title;
+
+  this.progressService.getProgressByCourseId(this.courseId).subscribe(progressData => {
+    const userRequests = progressData.map(p => this.userService.getUserById(p.studentId));
+
+    forkJoin(userRequests).subscribe(userResponses => {
+      this.progressList = progressData.map((progress, index) => {
+        const student = userResponses[index];
+        return {
+          id: progress.id,
+          studentId: progress.studentId,
+          studentName: student.name,
+          courseId: progress.courseId,
+          courseName: course.title,
+          completedLessons: progress.completedLessons,
+          quizScores: progress.quizScores
+        } as ProgressViewModel;
+      });
+
+      this.loading = false;
+    });
+  });
+});
+
+} }
